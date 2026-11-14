@@ -7,7 +7,10 @@ import random
 import shutil
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Union
+import logging
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("LanguageBotCore")
 # ==============================================================================
 # SECTION 0: SYSTEM LOGGING SETUP (CRITICAL: MUST BE AT THE VERY TOP)
 # ==============================================================================
