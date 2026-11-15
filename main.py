@@ -95,7 +95,7 @@ router = Router()
 # ==============================================================================
 # SECTION 3: ROBUST DATABASE MANAGEMENT SYSTEM
 # ==============================================================================
-BOT_TOKEN = "9084719584:AAGuBzbaD9qtOEoR4Hw4Ok_eL9Miic35Nb4"
+BOT_TOKEN = "9084719584:AAE4LeWAMwUm1ynXJeMlKxZxaApC65UhkDg"
 ADMIN_TELEGRAM_ID = 9136166835
 
 DB_FILENAME = "users_database.json"
