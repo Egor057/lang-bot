@@ -9,17 +9,12 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional, Union
 import logging
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("LanguageBotCore")
-# ==============================================================================
-# SECTION 0: SYSTEM LOGGING SETUP (CRITICAL: MUST BE AT THE VERY TOP)
-# ==============================================================================
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)-8s | %(name)s:%(funcName)s:%(lineno)d - %(message)s",
-    stream=sys.stdout
-)
-logger = logging.getLogger("LanguageBotCore")
+import asyncio
+import logging
+import sys
+
+logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+logger = logging.getLogger("LanguageBotCore"
 
 
 # ==============================================================================
