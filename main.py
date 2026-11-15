@@ -1,20 +1,15 @@
 import asyncio
-import logging
-import sys
 import json
+import logging
 import os
 import random
 import shutil
+import sys
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Union
-import logging
-
-import asyncio
-import logging
-import sys
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-logger = logging.getLogger("LanguageBotCore"
+logger = logging.getLogger("LanguageBotCore")
 
 
 # ==============================================================================
