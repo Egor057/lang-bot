@@ -296,7 +296,7 @@ async def handle_start_command(message: Message, state: FSMContext) -> None:
     await message.answer(
         welcome_message,
         parse_mode="Markdown",
-        reply_markup=build_main_menu_keyboard(is_administrator=is_admin)
+        reply_markup=build_main_menu_keyboard(is_admin)
     )
 
 @router.message(F.text == "👤 Профиль и Статистика")
