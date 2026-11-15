@@ -1,10 +1,10 @@
 import asyncio
-import json
 import logging
+import sys
+import json
 import os
 import random
 import shutil
-import sys
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Union
 
@@ -33,7 +33,6 @@ class RenderKeepAliveHandler(BaseHTTPRequestHandler):
             logger.error(f"Error handling HTTP keep-alive GET request: {e}")
 
     def log_message(self, format: str, *args: Any) -> None:
-        # Suppress standard HTTP server access logs to keep terminal output clean
         pass
 
 def start_web_server_daemon() -> None:
@@ -49,7 +48,6 @@ def start_web_server_daemon() -> None:
     except Exception as ex:
         logger.critical(f"Failed to start background HTTP server: {ex}")
 
-# Initialize and start the background web server thread immediately
 threading.Thread(target=start_web_server_daemon, daemon=True).start()
 
 
@@ -60,6 +58,7 @@ from vocabulary_detective import DETECTIVE_SCENARIOS
 from vocabulary_adventure import ADVENTURE_SCENARIOS
 from vocabulary_chat_sim import CHAT_SCENARIOS, FAIL_SCENARIOS, VICTORY_SCENARIOS
 from vocabulary_homework import get_random_homework_task
+from vocabulary_grammar import EXTENDED_GRAMMAR_DATABASE
 
 from aiogram import Bot, Dispatcher, F, Router, html
 from aiogram.filters import Command, StateFilter, CommandStart
@@ -78,7 +77,6 @@ from aiogram.types import (
 )
 from aiogram.exceptions import TelegramAPIError
 
-# Core router instantiation
 router = Router()
 
 
@@ -132,7 +130,6 @@ def save_db(data: Dict[str, Any]) -> None:
     except Exception as e:
         logger.error(f"Critical error saving database state: {e}")
 
-# Perform initial database setup
 initialize_database()
 
 
@@ -147,7 +144,7 @@ class BotStates(StatesGroup):
 
 
 # ==============================================================================
-# SECTION 5: VOCABULARY DATASETS & EXTENDED GRAMMAR DIRECTORY
+# SECTION 5: VOCABULARY DATASETS
 # ==============================================================================
 try:
     from vocabulary_a1 import WORDS_A1
@@ -174,33 +171,6 @@ try:
 except ImportError:
     WORDS_C1 = [{"word": "Abundant", "trans": "[əˈbʌn.dənt]", "ru": "Изобильный", "ex": "Abundant resources."}]
 
-EXTENDED_GRAMMAR_DATABASE = {
-    "nominatiivi": {
-        "title": "Nominatiivi (Именительный падеж)",
-        "questions": "Kuka? Mikä? (Кто? Что?)",
-        "purpose": "Словарная форма слова в финском языке.",
-        "rules": "Нулевое окончание в единственном числе.",
-        "examples": ["Tämä on auto. (Это машина.)", "Koira nukkuu. (Собака спит.)"],
-        "tips": "Используется для подлежащего в предложении."
-    },
-    "genetiivi": {
-        "title": "Genetiivi (Родительный падеж)",
-        "questions": "Kenen? Minkä? (Кого? Чего?)",
-        "purpose": "Обозначает принадлежность или обладателя.",
-        "rules": "Окончание: -n.",
-        "examples": ["Tämä on isän auto. (Это машина отца.)"],
-        "tips": "Следите за сильной и слабой ступенью согласных."
-    },
-    "partitiivi": {
-        "title": "Partitiivi (Партитив)",
-        "questions": "Ketä? Mitä? (Кого? Что?)",
-        "purpose": "Выражает частичность, неопределенное количество или используется при отрицании.",
-        "rules": "Окончания: -a, -ä, -ta, -tä.",
-        "examples": ["Minä syön leipää. (Я ем хлеб.)", "En ymmärrä. (Я не понимаю.)"],
-        "tips": "Самый часто используемый падеж в повседневной финской речи."
-    }
-}
-
 
 # ==============================================================================
 # SECTION 6: UI KEYBOARDS BUILDERS (REPLY & INLINE)
@@ -210,8 +180,9 @@ def build_main_menu_keyboard(is_admin: bool = False) -> ReplyKeyboardMarkup:
     rows = [
         [KeyboardButton(text="📚 Учить слова"), KeyboardButton(text="🎯 Режим тестов")],
         [KeyboardButton(text="🎮 Игры и квесты ⭐"), KeyboardButton(text="📚 Домашнее задание")],
-        [KeyboardButton(text="👤 Профиль и Статистика"), KeyboardButton(text="📖 Справочник падежей")],
-        [KeyboardButton(text="⭐ Купить Премиум"), KeyboardButton(text="⚙️ Настройки")]
+        [KeyboardButton(text="⚡ Тренажер фраз"), KeyboardButton(text="📖 Справочник падежей")],
+        [KeyboardButton(text="👤 Профиль и Статистика"), KeyboardButton(text="⭐ Купить Премиум")],
+        [KeyboardButton(text="⚙️ Настройки")]
     ]
     if is_admin:
         rows.append([KeyboardButton(text="👑 Панель администратора")])
@@ -253,11 +224,12 @@ def build_learning_actions_keyboard() -> InlineKeyboardMarkup:
 
 def build_grammar_directory_keyboard() -> InlineKeyboardMarkup:
     """Constructs inline keyboard for grammar case directory."""
-    rows = []
-    for code, info in EXTENDED_GRAMMAR_DATABASE.items():
-        short_title = info["title"].split(" ")[0]
-        rows.append([InlineKeyboardButton(text=f"📌 {short_title}", callback_data=f"grammar_info_{code}")])
-    rows.append([InlineKeyboardButton(text="🏠 Главное меню", callback_data="action_main_menu")])
+    rows = [
+        [InlineKeyboardButton(text="📌 Subjective (Я, он, она)", callback_data="grammar_info_subjective")],
+        [InlineKeyboardButton(text="📌 Possessive (Мой, его, ее)", callback_data="grammar_info_possessive")],
+        [InlineKeyboardButton(text="📌 Objective (Мне, меня, его)", callback_data="grammar_info_objective")],
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="action_main_menu")]
+    ]
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -286,16 +258,15 @@ async def handle_start_command(message: Message, state: FSMContext) -> None:
 
     is_admin = message.from_user.id == ADMIN_TELEGRAM_ID
     
-    # User's requested detailed welcome message structure
     welcome_message = (
-        f"👋 Здравствуй, **{html.quote(message.from_user.first_name)}**!\n\n"
+        f"👋 Здравствуй, <b>{html.quote(message.from_user.first_name)}</b>!\n\n"
         "Добро пожаловать в систему изучения языковой лексики и премиум-квестов.\n"
         "Выбирай нужный раздел в меню ниже 👇"
     )
     
     await message.answer(
         welcome_message,
-        parse_mode="Markdown",
+        parse_mode="HTML",
         reply_markup=build_main_menu_keyboard(is_admin)
     )
 
@@ -311,45 +282,46 @@ async def handle_profile_request(message: Message) -> None:
     sub_status = "🟢 Активна (Премиум ⭐)" if info.get("is_premium") else "⚪️ Базовый"
     
     profile_text = (
-        f"📊 **Твой персональный профиль:**\n\n"
+        f"📊 <b>Твой персональный профиль:</b>\n\n"
         f"👤 Имя: {html.quote(message.from_user.first_name)}\n"
-        f"🆔 ID: `{message.from_user.id}`\n"
-        f"📈 Уровень: `{info.get('level').upper()}`\n"
-        f"🧠 Просмотрено слов: `{info.get('words_learned', 0)}`\n"
-        f"✨ Правильных ответов: `{info.get('correct_answers', 0)}`\n"
-        f"🏆 Очки: `{info.get('quiz_score', 0)}`\n"
+        f"🆔 ID: <code>{message.from_user.id}</code>\n"
+        f"📈 Уровень: <code>{info.get('level').upper()}</code>\n"
+        f"🧠 Просмотрено слов: <code>{info.get('words_learned', 0)}</code>\n"
+        f"✨ Правильных ответов: <code>{info.get('correct_answers', 0)}</code>\n"
+        f"🏆 Очки: <code>{info.get('quiz_score', 0)}</code>\n"
         f"💎 Подписка: {sub_status}\n"
-        f"📅 Дата регистрации: `{info.get('joined_date', 'Неизвестно')}`"
+        f"📅 Дата регистрации: <code>{info.get('joined_date', 'Неизвестно')}</code>"
     )
-    await message.answer(profile_text, parse_mode="Markdown")
+    await message.answer(profile_text, parse_mode="HTML")
 
 @router.message(F.text == "📖 Справочник падежей")
 async def handle_grammar_menu(message: Message) -> None:
     """Opens the grammar reference directory."""
     await message.answer(
-        "📚 **Интерактивный справочник грамматики:**\nВыберите интересующий вас падеж:",
-        parse_mode="Markdown",
+        "📚 <b>Интерактивный справочник грамматики:</b>\nВыберите интересующий вас падеж:",
+        parse_mode="HTML",
         reply_markup=build_grammar_directory_keyboard()
     )
 
 @router.callback_query(F.data.startswith("grammar_info_"))
 async def process_grammar_card(callback: CallbackQuery) -> None:
-    """Displays detailed grammar card info based on user selection."""
+    """Displays detailed grammar card info based on user selection using safe HTML."""
     code = callback.data.split("_")[2]
     data = EXTENDED_GRAMMAR_DATABASE.get(code)
     if not data:
         await callback.answer("⚠️ Информация не найдена.", show_alert=True)
         return
-    exs = "\n".join([f"• {ex}" for ex in data["examples"]])
+    
+    examples_text = "\n".join([f"• <i>{ex}</i>" for ex in data['examples']])
     text = (
-        f"📖 **{data['title']}**\n\n"
-        f"❓ Вопросы: `{data['questions']}`\n\n"
-        f"🎯 Назначение: {data['purpose']}\n"
-        f"⚙️ Правило: {data['rules']}\n\n"
-        f"💡 Примеры:\n{exs}\n\n"
-        f"📌 Совет: *{data['tips']}*"
+        f"<b>{data['title']}</b>\n\n"
+        f"❓ <b>Вопрос:</b> {data['questions']}\n"
+        f"🎯 <b>Назначение:</b> {data['purpose']}\n"
+        f"📐 <b>Правила:</b> {data['rules']}\n\n"
+        f"💡 <b>Примеры:</b>\n{examples_text}\n\n"
+        f"📌 <b>Совет:</b> {data['tips']}"
     )
-    await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=build_grammar_directory_keyboard())
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=build_grammar_directory_keyboard())
     await callback.answer()
 
 @router.callback_query(F.data == "action_main_menu")
@@ -361,7 +333,7 @@ async def return_main_menu(callback: CallbackQuery, state: FSMContext) -> None:
         await callback.message.delete()
     except Exception:
         pass
-    await callback.message.answer("🏠 Главное меню:", reply_markup=build_main_menu_keyboard(is_administrator=is_admin))
+    await callback.message.answer("🏠 Главное меню:", reply_markup=build_main_menu_keyboard(is_admin))
     await callback.answer()
 
 
@@ -379,8 +351,8 @@ async def handle_homework_request(message: Message) -> None:
     keyboard_buttons.append([InlineKeyboardButton(text="🔄 Другое ДЗ", callback_data="hw_reload")])
     keyboard_buttons.append([InlineKeyboardButton(text="🏠 Главное меню", callback_data="action_main_menu")])
 
-    hw_text = f"🎯 **{hw['title']}**\n\n💡 _{hw['description']}_\n\n❓ **Задание:**\n{hw['task_text']}"
-    await message.answer(hw_text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard_buttons), parse_mode="Markdown")
+    hw_text = f"🎯 <b>{hw['title']}</b>\n\n💡 <i>{hw['description']}</i>\n\n❓ <b>Задание:</b>\n{hw['task_text']}"
+    await message.answer(hw_text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard_buttons), parse_mode="HTML")
 
 @router.callback_query(F.data == "hw_reload")
 async def reload_homework_callback(callback: CallbackQuery) -> None:
@@ -394,9 +366,9 @@ async def reload_homework_callback(callback: CallbackQuery) -> None:
     keyboard_buttons.append([InlineKeyboardButton(text="🏠 Главное меню", callback_data="action_main_menu")])
 
     await callback.message.edit_text(
-        f"🎯 **{hw['title']}**\n\n💡 _{hw['description']}_\n\n❓ **Задание:**\n{hw['task_text']}",
+        f"🎯 <b>{hw['title']}</b>\n\n💡 <i>{hw['description']}</i>\n\n❓ <b>Задание:</b>\n{hw['task_text']}",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard_buttons),
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
     await callback.answer()
 
@@ -409,9 +381,67 @@ async def process_homework_answer(callback: CallbackQuery) -> None:
         [InlineKeyboardButton(text="🏠 Главное меню", callback_data="action_main_menu")]
     ])
     if is_correct:
-        await callback.message.edit_text("✅ **Правильно! Отличная работа!** 🎉", parse_mode="Markdown", reply_markup=markup)
+        await callback.message.edit_text("✅ <b>Правильно! Отличная работа!</b> 🎉", parse_mode="HTML", reply_markup=markup)
     else:
-        await callback.message.edit_text("❌ **Неверно.** Попробуй другое задание или повтори теорию.", parse_mode="Markdown", reply_markup=markup)
+        await callback.message.edit_text("❌ <b>Неверно.</b> Попробуй другое задание или повтори теорию.", parse_mode="HTML", reply_markup=markup)
+    await callback.answer()
+
+
+# ==============================================================================
+# SECTION 8.1: INTERACTIVE PHRASE TRAINER MODULE (FREE / PREMIUM *)
+# ==============================================================================
+@router.message(F.text == "⚡ Тренажер фраз")
+async def trainer_menu_message(message: Message) -> None:
+    """Opens the interactive phrase trainer menu from reply keyboard."""
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📖 Обычный тренажер (Для всех)", callback_data="trainer_free_block")],
+        [InlineKeyboardButton(text="⭐ Премиум-тренажер *", callback_data="trainer_premium_block")],
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="action_main_menu")]
+    ])
+    await message.answer(
+        "⚡ <b>Интерактивный тренажер предложений:</b>\n\nВыберите режим тренировки ниже:",
+        parse_mode="HTML",
+        reply_markup=keyboard
+    )
+
+@router.callback_query(F.data == "trainer_menu")
+async def trainer_menu_handler(callback: CallbackQuery) -> None:
+    """Opens the interactive phrase trainer menu via callback."""
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📖 Обычный тренажер (Для всех)", callback_data="trainer_free_block")],
+        [InlineKeyboardButton(text="⭐ Премиум-тренажер *", callback_data="trainer_premium_block")],
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="action_main_menu")]
+    ])
+    await callback.message.edit_text(
+        "⚡ <b>Интерактивный тренажер предложений:</b>\n\nВыберите режим тренировки ниже:",
+        parse_mode="HTML",
+        reply_markup=keyboard
+    )
+    await callback.answer()
+
+@router.callback_query(F.data.in_({"trainer_free_block", "trainer_premium_block"}))
+async def trainer_content_handler(callback: CallbackQuery) -> None:
+    """Handles content display for free and premium trainer sub-blocks."""
+    if callback.data == "trainer_free_block":
+        text = (
+            "📖 <b>Обычный тренажер (Базовый уровень)</b>\n\n"
+            "Переведите предложение:\n"
+            "<i>I read books every evening.</i>\n\n"
+            "💡 Ответ: Я читаю книги каждый вечер."
+        )
+    else:
+        text = (
+            "⭐ <b>Премиум-тренажер * (Продвинутый уровень)</b>\n\n"
+            "Сложный бизнес-кейс:\n"
+            "<i>Notwithstanding the technical constraints, the deployment was successful.</i>\n\n"
+            "💡 Ответ: Несмотря на технические ограничения, развертывание прошло успешно."
+        )
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⬅️ Назад к выбору режима", callback_data="trainer_menu")],
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="action_main_menu")]
+    ])
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=keyboard)
     await callback.answer()
 
 
@@ -422,9 +452,9 @@ async def process_homework_answer(callback: CallbackQuery) -> None:
 async def handle_games_menu(message: Message) -> None:
     """Displays the games and quests selection menu."""
     await message.answer(
-        "🎮 **Интерактивные игры и квесты (Премиум ⭐):**\n\n"
+        "🎮 <b>Интерактивные игры и квесты (Премиум ⭐):</b>\n\n"
         "Выбирай захватывающее приключение или симуляцию из списка ниже:",
-        parse_mode="Markdown",
+        parse_mode="HTML",
         reply_markup=build_games_menu_keyboard()
     )
 
@@ -432,9 +462,9 @@ async def handle_games_menu(message: Message) -> None:
 async def cb_open_games_menu(callback: CallbackQuery) -> None:
     """Opens games menu via callback query."""
     await callback.message.edit_text(
-        "🎮 **Интерактивные игры и квесты (Премиум ⭐):**\n\n"
+        "🎮 <b>Интерактивные игры и квесты (Премиум ⭐):</b>\n\n"
         "Выбирай захватывающее приключение или симуляцию из списка ниже:",
-        parse_mode="Markdown",
+        parse_mode="HTML",
         reply_markup=build_games_menu_keyboard()
     )
     await callback.answer()
@@ -447,12 +477,12 @@ async def cb_start_detective(callback: CallbackQuery) -> None:
     db = load_db()
     if not db.get(str(user_id), {}).get("is_premium", False):
         await callback.message.edit_text(
-            "🔒 **Детективный квест доступен по Премиум-подписке!**\nСтоимость: **50 Telegram Stars (⭐)**.",
+            "🔒 <b>Детективный квест доступен по Премиум-подписке!</b>\nСтоимость: <b>50 Telegram Stars (⭐)</b>.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="⭐ Купить Премиум за 50 Звезд", callback_data="buy_premium_trigger")],
                 [InlineKeyboardButton(text="◀️ Назад к играм", callback_data="open_games_menu")]
             ]),
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
         await callback.answer()
         return
@@ -466,9 +496,9 @@ async def cb_start_detective(callback: CallbackQuery) -> None:
     btns.append([InlineKeyboardButton(text="◀️ К играм", callback_data="open_games_menu")])
 
     await callback.message.edit_text(
-        f"💷 £{money} | ⚡ {energy}% | 🔥 Реп: {rep} | 🔎 Улики: {clues}\n━━━━━━━━━━━━━━━━━━━\n\n*{scene['title']}*\n\n{scene['text']}",
+        f"💷 £{money} | ⚡ {energy}% | 🔥 Реп: {rep} | 🔎 Улики: {clues}\n━━━━━━━━━━━━━━━━━━━\n\n<b>{scene['title']}</b>\n\n{scene['text']}",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=btns),
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
     await callback.answer()
 
@@ -486,9 +516,9 @@ async def process_detective_choice(callback: CallbackQuery) -> None:
     btns.append([InlineKeyboardButton(text="◀️ К играм", callback_data="open_games_menu")])
 
     await callback.message.edit_text(
-        f"💷 £{m} | ⚡ {e}% | 🔥 Реп: {r} | 🔎 Улики: {c}\n━━━━━━━━━━━━━━━━━━━\n\n*{scene['title']}*\n\n{scene['text']}",
+        f"💷 £{m} | ⚡ {e}% | 🔥 Реп: {r} | 🔎 Улики: {c}\n━━━━━━━━━━━━━━━━━━━\n\n<b>{scene['title']}</b>\n\n{scene['text']}",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=btns),
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
     await callback.answer()
 
@@ -500,12 +530,12 @@ async def cb_start_chatsim(callback: CallbackQuery) -> None:
     db = load_db()
     if not db.get(str(user_id), {}).get("is_premium", False):
         await callback.message.edit_text(
-            "🔒 **Чат-симулятор доступен по Премиум-подписке!**\nСтоимость: **50 Telegram Stars (⭐)**.",
+            "🔒 <b>Чат-симулятор доступен по Премиум-подписке!</b>\nСтоимость: <b>50 Telegram Stars (⭐)</b>.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="⭐ Купить Премиум за 50 Звезд", callback_data="buy_premium_trigger")],
                 [InlineKeyboardButton(text="◀️ Назад к играм", callback_data="open_games_menu")]
             ]),
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
         await callback.answer()
         return
@@ -518,9 +548,9 @@ async def cb_start_chatsim(callback: CallbackQuery) -> None:
     btns.append([InlineKeyboardButton(text="◀️ К играм", callback_data="open_games_menu")])
 
     await callback.message.edit_text(
-        f"💬 **{scene['character']}**\n━━━━━━━━━━━━━━━━━━━\n\n📱 *{scene['dialogue']}*",
+        f"💬 <b>{scene['character']}</b>\n━━━━━━━━━━━━━━━━━━━\n\n📱 <i>{scene['dialogue']}</i>",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=btns),
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
     await callback.answer()
 
@@ -533,12 +563,12 @@ async def process_chatsim_choice(callback: CallbackQuery) -> None:
     if next_key.startswith("victory_"):
         scen = CHAT_SCENARIOS[next_key]
         await callback.message.edit_text(
-            f"🎉 **{scen['title']}**\n\n{scen['text']}",
+            f"🎉 <b>{scen['title']}</b>\n\n{scen['text']}",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="🔄 Заново", callback_data="start_game_chatsim")],
                 [InlineKeyboardButton(text="◀️ К играм", callback_data="open_games_menu")]
             ]),
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
         await callback.answer()
         return
@@ -546,12 +576,12 @@ async def process_chatsim_choice(callback: CallbackQuery) -> None:
     if not is_correct or next_key.startswith("fail_"):
         scen = CHAT_SCENARIOS.get(next_key, {"title": "💀 Game Over", "text": "Ошибка в диалоге."})
         await callback.message.edit_text(
-            f"❌ **{scen['title']}**\n\n{scen['text']}",
+            f"❌ <b>{scen['title']}</b>\n\n{scen['text']}",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="🔄 Повторить", callback_data="start_game_chatsim")],
                 [InlineKeyboardButton(text="◀️ К играм", callback_data="open_games_menu")]
             ]),
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
         await callback.answer()
         return
@@ -564,9 +594,9 @@ async def process_chatsim_choice(callback: CallbackQuery) -> None:
     btns.append([InlineKeyboardButton(text="◀️ К играм", callback_data="open_games_menu")])
 
     await callback.message.edit_text(
-        f"💬 **Собеседник: {scene['character']}**\n━━━━━━━━━━━━━━━━━━━\n\n✅ *{scene.get('feedback', 'Ответ принят.')}*\n\n📱 *{scene['dialogue']}*",
+        f"💬 <b>Собеседник: {scene['character']}</b>\n━━━━━━━━━━━━━━━━━━━\n\n✅ <i>{scene.get('feedback', 'Ответ принят.')}</i>\n\n📱 <i>{scene['dialogue']}</i>",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=btns),
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
     await callback.answer()
 
@@ -578,12 +608,12 @@ async def cb_start_adventure(callback: CallbackQuery) -> None:
     db = load_db()
     if not db.get(str(user_id), {}).get("is_premium", False):
         await callback.message.edit_text(
-            "🔒 **Квест в Лондоне (Путешествие) доступен по Премиум-подписке!**\nСтоимость: **50 Telegram Stars (⭐)**.",
+            "🔒 <b>Квест в Лондоне (Путешествие) доступен по Премиум-подписке!</b>\nСтоимость: <b>50 Telegram Stars (⭐)</b>.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="⭐ Купить Премиум за 50 Звезд", callback_data="buy_premium_trigger")],
                 [InlineKeyboardButton(text="◀️ Назад к играм", callback_data="open_games_menu")]
             ]),
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
         await callback.answer()
         return
@@ -597,9 +627,9 @@ async def cb_start_adventure(callback: CallbackQuery) -> None:
     btns.append([InlineKeyboardButton(text="◀️ К играм", callback_data="open_games_menu")])
 
     await callback.message.edit_text(
-        f"💷 £{money} | ⚡ {energy}% | 🔥 Реп: {rep}\n━━━━━━━━━━━━━━━━━━━\n\n*{scene['title']}*\n\n{scene['text']}",
+        f"💷 £{money} | ⚡ {energy}% | 🔥 Реп: {rep}\n━━━━━━━━━━━━━━━━━━━\n\n<b>{scene['title']}</b>\n\n{scene['text']}",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=btns),
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
     await callback.answer()
 
@@ -617,9 +647,9 @@ async def process_adventure_choice(callback: CallbackQuery) -> None:
     btns.append([InlineKeyboardButton(text="◀️ К играм", callback_data="open_games_menu")])
 
     await callback.message.edit_text(
-        f"💷 £{m} | ⚡ {e}% | 🔥 Реп: {r}\n━━━━━━━━━━━━━━━━━━━\n\n*{scene['title']}*\n\n{scene['text']}",
+        f"💷 £{m} | ⚡ {e}% | 🔥 Реп: {r}\n━━━━━━━━━━━━━━━━━━━\n\n<b>{scene['title']}</b>\n\n{scene['text']}",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=btns),
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
     await callback.answer()
 
@@ -630,7 +660,7 @@ async def process_adventure_choice(callback: CallbackQuery) -> None:
 @router.message(F.text == "📚 Учить слова")
 async def entry_vocab(message: Message, state: FSMContext) -> None:
     """Initiates vocabulary level selection."""
-    await message.answer("🔤 **Выбери языковой уровень:**", parse_mode="Markdown", reply_markup=build_levels_selection_keyboard())
+    await message.answer("🔤 <b>Выбери языковой уровень:</b>", parse_mode="HTML", reply_markup=build_levels_selection_keyboard())
     await state.set_state(BotStates.selecting_vocabulary_level)
 
 @router.callback_query(F.data.startswith("setlevel_"), StateFilter(BotStates.selecting_vocabulary_level, BotStates.active_learning_session))
@@ -649,20 +679,20 @@ async def set_vocab_level(callback: CallbackQuery, state: FSMContext) -> None:
         save_db(db)
     await state.update_data(active_vocab_level=lvl)
     await state.set_state(BotStates.active_learning_session)
-    await callback.message.edit_text(f"✅ Уровень изменен на **{lvl.upper()}**.", parse_mode="Markdown")
+    await callback.message.edit_text(f"✅ Уровень изменен на <b>{lvl.upper()}</b>.", parse_mode="HTML")
     await dispatch_card(callback.message, lvl, replace=True)
     await callback.answer()
 
 async def dispatch_card(message: Message, level_code: str, replace: bool = False) -> None:
-    """Dispatches a random vocabulary learning card."""
+    """Dispatches a random vocabulary learning card using safe HTML."""
     maps = {"a1": WORDS_A1, "a2": WORDS_A2, "b1": WORDS_B1, "b2": WORDS_B2, "c1": WORDS_C1}
     word = random.choice(maps.get(level_code, WORDS_A1))
     card = (
-        f"📖 **Карточка ({level_code.upper()})**\n\n"
-        f"🔤 **{html.quote(word.get('word', ''))}**\n"
-        f"🔊 `{html.quote(word.get('trans', ''))}`\n"
-        f"🇷🇺 **{html.quote(word.get('ru', ''))}**\n\n"
-        f"💡 *{html.quote(word.get('ex', ''))}*"
+        f"📖 <b>Карточка ({level_code.upper()})</b>\n\n"
+        f"🔤 <b>{html.quote(word.get('word', ''))}</b>\n"
+        f"🔊 <code>{html.quote(word.get('trans', ''))}</code>\n"
+        f"🇷🇺 <b>{html.quote(word.get('ru', ''))}</b>\n\n"
+        f"💡 <i>{html.quote(word.get('ex', ''))}</i>"
     )
     
     uid_str = str(message.chat.id)
@@ -673,11 +703,11 @@ async def dispatch_card(message: Message, level_code: str, replace: bool = False
 
     if replace:
         try:
-            await message.edit_text(card, parse_mode="Markdown", reply_markup=build_learning_actions_keyboard())
+            await message.edit_text(card, parse_mode="HTML", reply_markup=build_learning_actions_keyboard())
         except Exception:
-            await message.answer(card, parse_mode="Markdown", reply_markup=build_learning_actions_keyboard())
+            await message.answer(card, parse_mode="HTML", reply_markup=build_learning_actions_keyboard())
     else:
-        await message.answer(card, parse_mode="Markdown", reply_markup=build_learning_actions_keyboard())
+        await message.answer(card, parse_mode="HTML", reply_markup=build_learning_actions_keyboard())
 
 @router.callback_query(F.data == "action_next_word", StateFilter(BotStates.active_learning_session))
 async def next_word(callback: CallbackQuery, state: FSMContext) -> None:
@@ -689,7 +719,7 @@ async def next_word(callback: CallbackQuery, state: FSMContext) -> None:
 @router.callback_query(F.data == "action_change_level")
 async def change_level(callback: CallbackQuery, state: FSMContext) -> None:
     """Allows changing vocabulary level during learning session."""
-    await callback.message.edit_text("🔤 Выбери уровень:", parse_mode="Markdown", reply_markup=build_levels_selection_keyboard())
+    await callback.message.edit_text("🔤 Выбери уровень:", parse_mode="HTML", reply_markup=build_levels_selection_keyboard())
     await state.set_state(BotStates.selecting_vocabulary_level)
     await callback.answer()
 
@@ -713,7 +743,7 @@ async def entry_quiz(message: Message, state: FSMContext) -> None:
     btns = [[InlineKeyboardButton(text=opt["ru"], callback_data=f"quizanswer_{opt['ru']}")] for opt in options]
     btns.append([InlineKeyboardButton(text="❌ Выход", callback_data="action_main_menu")])
     
-    await message.answer(f"🎯 **Тест ({lvl.upper()})**\n\nКак переводится: **{html.quote(correct['word'])}**?", parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(inline_keyboard=btns))
+    await message.answer(f"🎯 <b>Тест ({lvl.upper()})</b>\n\nКак переводится: <b>{html.quote(correct['word'])}</b>?", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(inline_keyboard=btns))
 
 @router.callback_query(F.data.startswith("quizanswer_"), StateFilter(BotStates.quiz_question_active))
 async def eval_quiz(callback: CallbackQuery, state: FSMContext) -> None:
@@ -734,9 +764,9 @@ async def eval_quiz(callback: CallbackQuery, state: FSMContext) -> None:
             db[uid_str]["correct_answers"] = db[uid_str].get("correct_answers", 0) + 1
             db[uid_str]["quiz_score"] = db[uid_str].get("quiz_score", 0) + 15
             save_db(db)
-        await callback.message.edit_text("✅ **Верно! (+15 очков)** 🎉", parse_mode="Markdown", reply_markup=markup)
+        await callback.message.edit_text("✅ <b>Верно! (+15 очков)</b> 🎉", parse_mode="HTML", reply_markup=markup)
     else:
-        await callback.message.edit_text(f"❌ **Ошибка.** Правильно: *{correct}*.", parse_mode="Markdown", reply_markup=markup)
+        await callback.message.edit_text(f"❌ <b>Ошибка.</b> Правильно: <i>{correct}</i>.", parse_mode="HTML", reply_markup=markup)
     await callback.answer()
 
 @router.callback_query(F.data == "action_next_quiz")
@@ -760,7 +790,7 @@ async def settings_menu(message: Message) -> None:
         [InlineKeyboardButton(text="🔄 Сбросить статистику", callback_data="settings_reset_stats")],
         [InlineKeyboardButton(text="🏠 Главное меню", callback_data="action_main_menu")]
     ])
-    await message.answer("⚙️ **Настройки бота:**", parse_mode="Markdown", reply_markup=markup)
+    await message.answer("⚙️ <b>Настройки бота:</b>", parse_mode="HTML", reply_markup=markup)
 
 @router.callback_query(F.data == "settings_reset_stats")
 async def reset_stats(callback: CallbackQuery) -> None:
@@ -804,7 +834,7 @@ async def successful_payment(message: Message) -> None:
         save_db(db)
     
     is_admin = message.from_user.id == ADMIN_TELEGRAM_ID
-    await message.answer("🎉 **Оплата прошла успешно! Премиум активирован!** ⭐\nВсе игры, квесты и уровень C1 теперь полностью разблокированы.", parse_mode="Markdown", reply_markup=build_main_menu_keyboard(is_admin))
+    await message.answer("🎉 <b>Оплата прошла успешно! Премиум активирован!</b> ⭐\nВсе игры, квесты и уровень C1 теперь полностью разблокированы.", parse_mode="HTML", reply_markup=build_main_menu_keyboard(is_admin))
 
 
 # ==============================================================================
@@ -821,12 +851,12 @@ async def admin_panel_handler(message: Message) -> None:
     premium_users = sum(1 for u in db.values() if u.get("is_premium"))
     
     text = (
-        f"👑 **Панель администратора:**\n\n"
-        f"👥 Всего пользователей в базе: `{total_users}`\n"
-        f"💎 Премиум пользователей: `{premium_users}`\n"
-        f"🟢 Статус сервера: `Работает 24/7 (Render Keep-Alive)`"
+        f"👑 <b>Панель администратора:</b>\n\n"
+        f"👥 Всего пользователей в базе: <code>{total_users}</code>\n"
+        f"💎 Премиум пользователей: <code>{premium_users}</code>\n"
+        f"🟢 Статус сервера: <code>Работает 24/7 (Render Keep-Alive)</code>"
     )
-    await message.answer(text, parse_mode="Markdown")
+    await message.answer(text, parse_mode="HTML")
 
 
 # ==============================================================================
